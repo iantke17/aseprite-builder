@@ -55,12 +55,30 @@ jobs:
       - name: Download & Extract Skia
         shell: powershell
         run: |
-          Invoke-WebRequest -Uri "https://github.com/aseprite/skia/releases/download/m124-08a5439a6b/Skia-Windows-Release-x64.zip" -OutFile "skia.zip" -UseBasicParsing
+          function Invoke-DownloadWithRetry {
+            param(
+              [Parameter(Mandatory = $true)][string]$Uri,
+              [Parameter(Mandatory = $true)][string]$OutFile,
+              [int]$MaxAttempts = 3
+            )
+            for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+              try {
+                Invoke-WebRequest -Uri $Uri -OutFile $OutFile -UseBasicParsing
+                return
+              } catch {
+                if ($attempt -eq $MaxAttempts) { throw }
+                Write-Host "Download failed ($attempt/$MaxAttempts). Retrying in 5 seconds..."
+                Start-Sleep -Seconds 5
+              }
+            }
+          }
+          
+          Invoke-DownloadWithRetry -Uri "https://github.com/aseprite/skia/releases/download/m124-08a5439a6b/Skia-Windows-Release-x64.zip" -OutFile "skia.zip"
           Expand-Archive -Force "skia.zip" "skia"
           
           # Download icudtl.dat (required for ICU support)
           mkdir skia\out\Release-x64 -Force
-          Invoke-WebRequest -Uri "https://github.com/aseprite/skia/releases/download/m124-08a5439a6b/icudtl.dat" -OutFile "skia/out/Release-x64/icudtl.dat" -UseBasicParsing
+          Invoke-DownloadWithRetry -Uri "https://github.com/aseprite/skia/releases/download/m124-08a5439a6b/icudtl.dat" -OutFile "skia/out/Release-x64/icudtl.dat"
           Write-Host "Skia extracted successfully with icudtl.dat"
 
       - name: Initialize MSVC Environment
